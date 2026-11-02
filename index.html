@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام إدارة الحضور والإجازات الذكي</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Font - Cairo -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        cairo: ['Cairo', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0284c7',
+                            600: '#0369a1',
+                            700: '#075985',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            color: #f8fafc;
+            min-height: 100vh;
+        }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .glass-input {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+        .glass-input:focus {
+            border-color: #38bdf8;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(56, 189, 248, 0.3);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(56, 189, 248, 0.6);
+        }
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; color: black; }
+            .glass-card { background: white; border: 1px solid #ccc; color: black; box-shadow: none; }
+        }
+    </style>
+</head>
+<body class="p-3 md:p-6 pb-12">
+
+    <!-- Header & Navigation Bar -->
+    <header class="glass-card rounded-2xl p-4 mb-6 flex flex-wrap justify-between items-center gap-4 border-b border-slate-700/50">
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center text-white text-2xl shadow-lg shadow-sky-500/30">
+                <i class="fa-solid font-bold fa-user-check"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-sky-400 to-indigo-300">
+                    نظام مسار الحضور والإجازات
+                </h1>
+                <p class="text-xs text-slate-400">إدارة الحضور الذكي والتثبيت الآلي للإجازات</p>
+            </div>
+        </div>
+
+        <!-- Role Switcher & User Info -->
+        <div class="flex items-center gap-4">
+            <!-- Dynamic Role Toggle Buttons -->
+            <div class="bg-slate-900/80 p-1.5 rounded-xl border border-slate-700/60 flex items-center gap-1">
+                <button id="btn-employee-view" onclick="switchRole('employee')" class="px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all duration-300 flex items-center gap-2 bg-sky-600 text-white shadow-md">
+                    <i class="fa-solid fa-user"></i>
+                    واجهة الموظف
+                </button>
+                <button id="btn-hr-view" onclick="switchRole('hr')" class="px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all duration-300 flex items-center gap-2 text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-user-shield"></i>
+                    لوحة المدير / HR
+                </button>
+            </div>
+
+            <!-- Current User Badge -->
+            <div class="hidden sm:flex items-center gap-3 pl-2 border-r border-slate-700 pr-4">
+                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80" alt="Avatar" class="w-9 h-9 rounded-full ring-2 ring-sky-500/50 object-cover">
+                <div>
+                    <div id="current-user-name" class="text-xs font-bold text-slate-200">سارة أحمد</div>
+                    <div id="current-user-title" class="text-[10px] text-sky-400">مهندسة برمجيات</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Dynamic Content Wrapper -->
+    <main class="max-w-7xl mx-auto space-y-6">
+
+        <!-- ================= EMPLOYEE VIEW SECTION ================= -->
+        <section id="employee-view-container" class="space-y-6">
+            
+            <!-- Top Grid: Check-in Card & Leave Balances -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- Check-in / Check-out Interactive Card -->
+                <div class="glass-card rounded-2xl p-6 relative overflow-hidden flex flex-col justify-between border-t-4 border-sky-500">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-clock text-sky-400"></i>
+                                تسجيل الحضور اليومي
+                            </h2>
+                            <p class="text-xs text-slate-400 mt-1" id="live-clock-date">جاري التحميل...</p>
+                        </div>
+                        <span id="geo-status-badge" class="px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                            النطاق: المقر الرئيسي
+                        </span>
+                    </div>
+
+                    <!-- Live Digital Clock Display -->
+                    <div class="text-center my-4 py-4 bg-slate-900/40 rounded-xl border border-slate-800">
+                        <div id="live-clock-time" class="text-4xl font-black font-mono tracking-wider text-sky-400">00:00:00</div>
+                        <div class="text-xs text-slate-400 mt-1">ساعات العمل الرسمية: 08:00 ص - 04:00 م</div>
+                    </div>
+
+                    <!-- Attendance Action Buttons -->
+                    <div class="space-y-3">
+                        <div id="checkin-status-msg" class="text-xs text-center text-slate-300 min-h-[20px]">لم يتم تسجيل الدخول اليوم</div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <button id="btn-checkin" onclick="handleCheckIn()" class="py-3 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white rounded-xl font-bold shadow-lg shadow-emerald-900/30 transition-all flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-right-to-bracket"></i>
+                                تسجيل دخول
+                            </button>
+                            <button id="btn-checkout" onclick="handleCheckOut()" disabled class="py-3 px-4 bg-rose-600/50 text-slate-400 cursor-not-allowed rounded-xl font-bold transition-all flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-right-from-bracket"></i>
+                                تسجيل خروج
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-t border-slate-700/50 flex justify-between text-[11px] text-slate-400">
+                        <span><i class="fa-solid fa-wifi text-sky-400"></i> شبكة: Corporate-5G</span>
+                        <span><i class="fa-solid fa-location-dot text-rose-400"></i> GPS: محدد بدقة</span>
+                    </div>
+                </div>
+
+                <!-- Leave Balances Cards (3 Cards) -->
+                <div class="lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <!-- Annual Leave -->
+                    <div class="glass-card rounded-2xl p-5 flex flex-col justify-between border-b-4 border-sky-400">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-semibold text-slate-400">الإجازات السنوية</span>
+                            <div class="w-8 h-8 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center">
+                                <i class="fa-solid fa-umbrella-beach"></i>
+                            </div>
+                        </div>
+                        <div class="my-4">
+                            <div class="flex items-baseline gap-2">
+                                <span id="bal-annual" class="text-3xl font-extrabold text-white">18</span>
+                                <span class="text-xs text-slate-400">من أصل 21 يوم</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-2 mt-3 overflow-hidden">
+                                <div id="bar-annual" class="bg-sky-400 h-2 rounded-full" style="width: 85%"></div>
+                            </div>
+                        </div>
+                        <span class="text-[11px] text-slate-400">المتبقي لهذا العام</span>
+                    </div>
+
+                    <!-- Sick Leave -->
+                    <div class="glass-card rounded-2xl p-5 flex flex-col justify-between border-b-4 border-emerald-400">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-semibold text-slate-400">الإجازات المرضية</span>
+                            <div class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                                <i class="fa-solid fa-user-nurse"></i>
+                            </div>
+                        </div>
+                        <div class="my-4">
+                            <div class="flex items-baseline gap-2">
+                                <span id="bal-sick" class="text-3xl font-extrabold text-white">9</span>
+                                <span class="text-xs text-slate-400">من أصل 10 أيام</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-2 mt-3 overflow-hidden">
+                                <div id="bar-sick" class="bg-emerald-400 h-2 rounded-full" style="width: 90%"></div>
+                            </div>
+                        </div>
+                        <span class="text-[11px] text-slate-400">تستلزم تقرير طبي</span>
+                    </div>
+
+                    <!-- Emergency Leave -->
+                    <div class="glass-card rounded-2xl p-5 flex flex-col justify-between border-b-4 border-amber-400">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-semibold text-slate-400">الإجازات الطارئة</span>
+                            <div class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                                <i class="fa-solid fa-bolt"></i>
+                            </div>
+                        </div>
+                        <div class="my-4">
+                            <div class="flex items-baseline gap-2">
+                                <span id="bal-emergency" class="text-3xl font-extrabold text-white">4</span>
+                                <span class="text-xs text-slate-400">من أصل 5 أيام</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-2 mt-3 overflow-hidden">
+                                <div id="bar-emergency" class="bg-amber-400 h-2 rounded-full" style="width: 80%"></div>
+                            </div>
+                        </div>
+                        <span class="text-[11px] text-slate-400">مخصصة للظروف المفاجئة</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lower Section: Request Leave & Employee History -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- New Leave Request Form -->
+                <div class="glass-card rounded-2xl p-6">
+                    <h2 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-paper-plane text-sky-400"></i>
+                        تقديم طلب إجازة جديد
+                    </h2>
+                    
+                    <form id="leave-request-form" onsubmit="submitLeaveRequest(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">نوع الإجازة</label>
+                            <select id="req-leave-type" required class="w-full glass-input rounded-xl p-2.5 text-xs text-slate-200">
+                                <option value="ANNUAL">إجازة سنوية</option>
+                                <option value="SICK">إجازة مرضية</option>
+                                <option value="EMERGENCY">إجازة طارئة</option>
+                                <option value="UNPAID">إجازة بدون راتب</option>
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">تاريخ البدء</label>
+                                <input type="date" id="req-start-date" required class="w-full glass-input rounded-xl p-2.5 text-xs text-slate-200">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-300 mb-1">تاريخ الانتهاء</label>
+                                <input type="date" id="req-end-date" required class="w-full glass-input rounded-xl p-2.5 text-xs text-slate-200">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">الموظف البديل (لتفويض المهام)</label>
+                            <select id="req-replacement" class="w-full glass-input rounded-xl p-2.5 text-xs text-slate-200">
+                                <option value="أحمد منصور (مطور فرونت إند)">أحمد منصور (مطور فرونت إند)</option>
+                                <option value="ريم علي (مصممة واجهات)">ريم علي (مصممة واجهات)</option>
+                                <option value="محمد خالد (مدير مشاريع)">محمد خالد (مدير مشاريع)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-slate-300 mb-1">السبب / الملاحظات</label>
+                            <textarea id="req-reason" rows="2" placeholder="اكتب سبباً مختصراً للطلب..." class="w-full glass-input rounded-xl p-2.5 text-xs text-slate-200 resize-none"></textarea>
+                        </div>
+
+                        <button type="submit" class="w-full py-3 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-sky-500/25 transition-all">
+                            إرسال الطلب للموافقة
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Personal Attendance History Table -->
+                <div class="lg:col-span-2 glass-card rounded-2xl p-6 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-calendar-check text-sky-400"></i>
+                                سجل الحضور والغياب الشخصي
+                            </h2>
+                            <span class="text-xs text-slate-400">آخر 30 يوم</span>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-right text-xs">
+                                <thead>
+                                    <tr class="text-slate-400 border-b border-slate-700/60 pb-2">
+                                        <th class="p-3">التاريخ</th>
+                                        <th class="p-3">وقت الدخول</th>
+                                        <th class="p-3">وقت الخروج</th>
+                                        <th class="p-3">الحالة</th>
+                                        <th class="p-3">طريقة التحقق</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="personal-history-tbody" class="divide-y divide-slate-800">
+                                    <!-- Dynamic Rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center text-xs text-slate-400">
+                        <span>إجمالي أيام الحضور هذا الشهر: <strong class="text-emerald-400" id="total-present-count">22 يوم</strong></span>
+                        <span>إجمالي التأخيرات: <strong class="text-amber-400" id="total-late-count">2 يوم</strong></span>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ================= HR / MANAGER DASHBOARD SECTION ================= -->
+        <section id="hr-view-container" class="space-y-6 hidden">
+            
+            <!-- Quick Stats 4 Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="glass-card rounded-2xl p-5 border-r-4 border-indigo-500">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="text-xs text-slate-400 font-medium">إجمالي الموظفين</p>
+                            <h3 id="stat-total-employees" class="text-2xl font-black text-white mt-1">48</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-users"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-card rounded-2xl p-5 border-r-4 border-emerald-500">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="text-xs text-slate-400 font-medium">الحاضرون اليوم</p>
+                            <h3 id="stat-present-today" class="text-2xl font-black text-emerald-400 mt-1">42</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-user-check"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-card rounded-2xl p-5 border-r-4 border-rose-500">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="text-xs text-slate-400 font-medium">الغياب / الإجازات اليوم</p>
+                            <h3 id="stat-absent-today" class="text-2xl font-black text-rose-400 mt-1">6</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-user-xmark"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-card rounded-2xl p-5 border-r-4 border-amber-500">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="text-xs text-slate-400 font-medium">طلبات إجازة معلقة</p>
+                            <h3 id="stat-pending-requests" class="text-2xl font-black text-amber-400 mt-1">0</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-clock-rotate-left"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Employees Management CRUD Section -->
+            <div class="glass-card rounded-2xl p-6">
+                <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-id-card text-indigo-400"></i>
+                            إدارة الموظفين (إضافة، تعديل، حذف)
+                        </h2>
+                        <p class="text-xs text-slate-400">إدارة قاعدة بيانات الموظفين وصلاحياتهم وأرصدة إجازاتهم</p>
+                    </div>
+                    <button onclick="openEmployeeModal()" class="px-4 py-2 bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white rounded-xl text-xs font-bold shadow-lg flex items-center gap-2 transition-all">
+                        <i class="fa-solid fa-user-plus"></i>
+                        إضافة موظف جديد
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-right text-xs">
+                        <thead>
+                            <tr class="text-slate-400 border-b border-slate-700/60 pb-2">
+                                <th class="p-3">اسم الموظف</th>
+                                <th class="p-3">البريد الإلكتروني</th>
+                                <th class="p-3">القسم</th>
+                                <th class="p-3">المسمى الوظيفي</th>
+                                <th class="p-3">رصيد السنوية</th>
+                                <th class="p-3 text-center">الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hr-employees-tbody" class="divide-y divide-slate-800">
+                            <!-- Dynamic Employees -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Pending Leave Requests Table -->
+            <div class="glass-card rounded-2xl p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-clipboard-check text-amber-400"></i>
+                            طلبات الإجازات المعلقة لجميع الموظفين
+                        </h2>
+                        <p class="text-xs text-slate-400">مراجعة واتخاذ قرار بشأن طلبات الإجازات المقدمة حديثاً</p>
+                    </div>
+                    <span id="pending-count-badge" class="px-3 py-1 bg-amber-500/20 text-amber-400 rounded-full text-xs font-bold">
+                        0 طلب معلق
+                    </span>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-right text-xs">
+                        <thead>
+                            <tr class="text-slate-400 border-b border-slate-700/60 pb-2">
+                                <th class="p-3">الموظف</th>
+                                <th class="p-3">نوع الإجازة</th>
+                                <th class="p-3">الفترة</th>
+                                <th class="p-3">عدد الأيام</th>
+                                <th class="p-3">الموظف البديل</th>
+                                <th class="p-3">السبب</th>
+                                <th class="p-3 text-center">الإجراء</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hr-pending-requests-tbody" class="divide-y divide-slate-800">
+                            <!-- Dynamic Content -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Full Attendance Management & Export -->
+            <div class="glass-card rounded-2xl p-6">
+                <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
+                    <div>
+                        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-list-check text-sky-400"></i>
+                            سجل حضور وغياب كافة الموظفين
+                        </h2>
+                        <p class="text-xs text-slate-400">فلترة، تتبع، وتصدير التقارير للرواتب</p>
+                    </div>
+
+                    <!-- Actions & Filters -->
+                    <div class="flex flex-wrap items-center gap-3 no-print">
+                        <select id="filter-status" onchange="filterHRTable()" class="glass-input rounded-xl px-3 py-2 text-xs text-slate-200">
+                            <option value="ALL">جميع الحالات</option>
+                            <option value="PRESENT">حاضر (PRESENT)</option>
+                            <option value="LATE">متأخر (LATE)</option>
+                            <option value="LEAVE">في إجازة (LEAVE)</option>
+                            <option value="ABSENT">غائب (ABSENT)</option>
+                        </select>
+
+                        <button onclick="exportToPrint()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-xl text-xs font-bold text-slate-200 flex items-center gap-2 transition-all">
+                            <i class="fa-solid fa-print"></i>
+                            طباعة / تصدير PDF
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-right text-xs" id="hr-master-table">
+                        <thead>
+                            <tr class="text-slate-400 border-b border-slate-700/60 pb-2">
+                                <th class="p-3">اسم الموظف</th>
+                                <th class="p-3">القسم</th>
+                                <th class="p-3">التاريخ</th>
+                                <th class="p-3">الدخول</th>
+                                <th class="p-3">الخروج</th>
+                                <th class="p-3">وسيلة التحقق</th>
+                                <th class="p-3">الحالة</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hr-attendance-tbody" class="divide-y divide-slate-800">
+                            <!-- Dynamic Rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Modal for Adding/Editing Employee -->
+    <div id="employee-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="glass-card rounded-2xl p-6 w-full max-w-md border border-slate-700 shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="modal-title" class="text-base font-bold text-white">إضافة موظف جديد</h3>
+                <button onclick="closeEmployeeModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="employee-form" onsubmit="saveEmployee(event)" class="space-y-3">
+                <input type="hidden" id="emp-edit-index" value="-1">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">الاسم الكامل</label>
+                    <input type="text" id="emp-name" required class="w-full glass-input rounded-xl p-2.5 text-xs text-slate-200">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">البريد الإلكتروني</label>
+                    <input type="email" id="emp-email" required class="w-full glass-input rounded-xl p-2.5 text-xs text-slate-200">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">القسم</label>
+                    <input type="text" id="emp-dept" required class="w-full glass-input rounded-xl p-2.5 text-xs text-slate-200">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">المسمى الوظيفي</label>
+                    <input type="text" id="emp-title" required class="w-full glass-input rounded-xl p-2.5 text-xs text-slate-200">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">رصيد السنوية</label>
+                        <input type="number" id="emp-annual" value="21" required class="w-full glass-input rounded-xl p-2.5 text-xs text-slate-200">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">رصيد المرضية</label>
+                        <input type="number" id="emp-sick" value="10" required class="w-full glass-input rounded-xl p-2.5 text-xs text-slate-200">
+                    </div>
+                </div>
+                <div class="pt-2 flex gap-3">
+                    <button type="submit" class="flex-1 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold transition-all">حفظ البيانات</button>
+                    <button type="button" onclick="closeEmployeeModal()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition-all">إلغاء</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Global Toast Notification Dialog -->
+    <div id="toast-notification" class="fixed bottom-5 left-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="glass-card px-5 py-3 rounded-xl border border-sky-500/50 flex items-center gap-3 shadow-2xl">
+            <div id="toast-icon" class="text-sky-400 text-lg">
+                <i class="fa-solid fa-circle-check"></i>
+            </div>
+            <div>
+                <h4 id="toast-title" class="text-xs font-bold text-white">إشعار</h4>
+                <p id="toast-msg" class="text-[11px] text-slate-300">تمت العملية بنجاح</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Logic Application Script -->
+    <script>
+        // Default Mock Data Store
+        const INITIAL_DATA = {
+            currentUser: {
+                id: 101,
+                name: "سارة أحمد",
+                title: "مهندسة برمجيات",
+                department: "التطوير البرمجي",
+                balances: {
+                    ANNUAL: 18,
+                    SICK: 9,
+                    EMERGENCY: 4
+                }
+            },
+            employeesList: [
+                { id: 101, name: "سارة أحمد", email: "sara@company.com", department: "التطوير البرمجي", title: "مهندسة برمجيات", annual: 18, sick: 9 },
+                { id: 102, name: "محمد العتيبي", email: "mohammed@company.com", department: "المبيعات", title: "مستشار مبيعات", annual: 21, sick: 10 },
+                { id: 103, name: "فاطمة الزهراء", email: "fatima@company.com", department: "التصميم", title: "مصممة واجهات UI/UX", annual: 15, sick: 8 },
+                { id: 104, name: "عبدالله خالد", email: "abdullah@company.com", department: "الموارد البشرية", title: "أخصائي توظيف", annual: 20, sick: 10 }
+            ],
+            personalLogs: [
+                { id: 1, date: "2026-11-01", checkIn: "08:02 ص", checkOut: "04:05 م", status: "PRESENT", method: "GPS / وجه" },
+                { id: 2, date: "2026-10-31", checkIn: "08:24 ص", checkOut: "04:10 م", status: "LATE", method: "GPS" }
+            ],
+            leaveRequests: [
+                {
+                    id: 501,
+                    userId: 102,
+                    userName: "محمد العتيبي",
+                    leaveType: "ANNUAL",
+                    leaveTypeName: "إجازة سنوية",
+                    startDate: "2026-11-05",
+                    endDate: "2026-11-08",
+                    days: 4,
+                    replacement: "ريم علي",
+                    reason: "سفر عائلي",
+                    status: "PENDING"
+                }
+            ],
+            allEmployeesLogs: [
+                { id: 1, name: "سارة أحمد", dept: "التطوير البرمجي", date: "2026-11-01", checkIn: "08:02 ص", checkOut: "-", method: "GPS", status: "PRESENT" },
+                { id: 2, name: "محمد العتيبي", dept: "المبيعات", date: "2026-11-01", checkIn: "08:35 ص", checkOut: "-", method: "الوجه", status: "LATE" }
+            ]
+        };
+
+        // Application State Management
+        let appState = {
+            role: 'employee',
+            isCheckedIn: false,
+            checkInTime: null,
+            data: JSON.parse(localStorage.getItem('attendance_app_db_v2')) || INITIAL_DATA
+        };
+
+        function saveData() {
+            localStorage.setItem('attendance_app_db_v2', JSON.stringify(appState.data));
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initClock();
+            renderEmployeeView();
+            renderHRView();
+            setDefaultDates();
+        });
+
+        function setDefaultDates() {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const dateStr = tomorrow.toISOString().split('T')[0];
+            document.getElementById('req-start-date').value = dateStr;
+            document.getElementById('req-end-date').value = dateStr;
+        }
+
+        function initClock() {
+            const updateClock = () => {
+                const now = new Date();
+                document.getElementById('live-clock-time').textContent = now.toLocaleTimeString('ar-SA', { hour12: true });
+                document.getElementById('live-clock-date').textContent = now.toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            };
+            updateClock();
+            setInterval(updateClock, 1000);
+        }
+
+        function switchRole(role) {
+            appState.role = role;
+            const empBtn = document.getElementById('btn-employee-view');
+            const hrBtn = document.getElementById('btn-hr-view');
+            const empCont = document.getElementById('employee-view-container');
+            const hrCont = document.getElementById('hr-view-container');
+
+            if (role === 'employee') {
+                empBtn.className = "px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all duration-300 flex items-center gap-2 bg-sky-600 text-white shadow-md";
+                hrBtn.className = "px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all duration-300 flex items-center gap-2 text-slate-400 hover:text-white";
+                empCont.classList.remove('hidden');
+                hrCont.classList.add('hidden');
+            } else {
+                hrBtn.className = "px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all duration-300 flex items-center gap-2 bg-sky-600 text-white shadow-md";
+                empBtn.className = "px-4 py-2 rounded-lg text-xs md:text-sm font-semibold transition-all duration-300 flex items-center gap-2 text-slate-400 hover:text-white";
+                hrCont.classList.remove('hidden');
+                empCont.classList.add('hidden');
+                renderHRView();
+            }
+        }
+
+        function handleCheckIn() {
+            if (appState.isCheckedIn) return;
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+            appState.isCheckedIn = true;
+
+            document.getElementById('btn-checkin').disabled = true;
+            document.getElementById('btn-checkin').className = "py-3 px-4 bg-emerald-900/40 text-slate-500 cursor-not-allowed rounded-xl font-bold flex items-center justify-center gap-2";
+            document.getElementById('btn-checkout').disabled = false;
+            document.getElementById('btn-checkout').className = "py-3 px-4 bg-rose-600 hover:bg-rose-500 active:scale-95 text-white rounded-xl font-bold shadow-lg shadow-rose-900/35 transition-all flex items-center justify-center gap-2";
+            document.getElementById('checkin-status-msg').innerHTML = `<span class="text-emerald-400 font-bold"><i class="fa-solid fa-circle-check"></i> تم تسجيل الدخول الساعة ${timeStr}</span>`;
+
+            const todayStr = new Date().toISOString().split('T')[0];
+            appState.data.personalLogs.unshift({ id: Date.now(), date: todayStr, checkIn: timeStr, checkOut: "-", status: "PRESENT", method: "GPS" });
+            appState.data.allEmployeesLogs.unshift({ id: Date.now(), name: appState.data.currentUser.name, dept: appState.data.currentUser.department, date: todayStr, checkIn: timeStr, checkOut: "-", method: "GPS", status: "PRESENT" });
+
+            saveData();
+            renderEmployeeView();
+            renderHRView();
+            showToast("تم تسجيل الحضور", `تم إثبات الحضور بنجاح الساعة ${timeStr}`);
+        }
+
+        function handleCheckOut() {
+            if (!appState.isCheckedIn) return;
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+            appState.isCheckedIn = false;
+
+            document.getElementById('btn-checkout').disabled = true;
+            document.getElementById('btn-checkout').className = "py-3 px-4 bg-rose-900/40 text-slate-500 cursor-not-allowed rounded-xl font-bold flex items-center justify-center gap-2";
+            document.getElementById('checkin-status-msg').innerHTML = `<span class="text-slate-400">تم تسجيل الخروج اليوم الساعة ${timeStr}</span>`;
+
+            if(appState.data.personalLogs.length > 0) appState.data.personalLogs[0].checkOut = timeStr;
+            if(appState.data.allEmployeesLogs.length > 0) appState.data.allEmployeesLogs[0].checkOut = timeStr;
+
+            saveData();
+            renderEmployeeView();
+            renderHRView();
+            showToast("تم تسجيل الخروج", "نتمنى لك يوماً سعيداً!");
+        }
+
+        function submitLeaveRequest(e) {
+            e.preventDefault();
+            const type = document.getElementById('req-leave-type').value;
+            const start = document.getElementById('req-start-date').value;
+            const end = document.getElementById('req-end-date').value;
+            const replacement = document.getElementById('req-replacement').value;
+            const reason = document.getElementById('req-reason').value;
+
+            const diffDays = Math.ceil(Math.abs(new Date(end) - new Date(start)) / (1000 * 60 * 60 * 24)) + 1;
+            const typeNames = { 'ANNUAL': 'إجازة سنوية', 'SICK': 'إجازة مرضية', 'EMERGENCY': 'إجازة طارئة', 'UNPAID': 'إجازة بدون راتب' };
+
+            appState.data.leaveRequests.unshift({
+                id: Date.now(),
+                userId: appState.data.currentUser.id,
+                userName: appState.data.currentUser.name,
+                leaveType: type,
+                leaveTypeName: typeNames[type],
+                startDate: start,
+                endDate: end,
+                days: diffDays,
+                replacement: replacement,
+                reason: reason || "بدون سبب",
+                status: "PENDING"
+            });
+
+            saveData();
+            document.getElementById('leave-request-form').reset();
+            setDefaultDates();
+            renderEmployeeView();
+            renderHRView();
+            showToast("تم الإرسال", "تم إرسال طلب الإجازة للمدير بنجاح.");
+        }
+
+        function renderEmployeeView() {
+            const bal = appState.data.currentUser.balances;
+            document.getElementById('bal-annual').textContent = bal.ANNUAL;
+            document.getElementById('bal-sick').textContent = bal.SICK;
+            document.getElementById('bal-emergency').textContent = bal.EMERGENCY;
+
+            const tbody = document.getElementById('personal-history-tbody');
+            tbody.innerHTML = '';
+            appState.data.personalLogs.forEach(log => {
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-800/50 transition-colors">
+                        <td class="p-3 font-medium text-slate-200">${log.date}</td>
+                        <td class="p-3 text-slate-300">${log.checkIn}</td>
+                        <td class="p-3 text-slate-300">${log.checkOut}</td>
+                        <td class="p-3">${getStatusBadge(log.status)}</td>
+                        <td class="p-3 text-slate-400">${log.method}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function renderHRView() {
+            document.getElementById('stat-total-employees').textContent = appState.data.employeesList.length;
+            
+            // Employees Table CRUD
+            const empTbody = document.getElementById('hr-employees-tbody');
+            empTbody.innerHTML = '';
+            appState.data.employeesList.forEach((emp, index) => {
+                empTbody.innerHTML += `
+                    <tr class="hover:bg-slate-800/50 transition-colors">
+                        <td class="p-3 font-bold text-white">${emp.name}</td>
+                        <td class="p-3 text-slate-300">${emp.email}</td>
+                        <td class="p-3 text-slate-400">${emp.department}</td>
+                        <td class="p-3 text-sky-400">${emp.title}</td>
+                        <td class="p-3 font-bold text-amber-400">${emp.annual} يوم</td>
+                        <td class="p-3 text-center flex justify-center gap-2">
+                            <button onclick="editEmployee(${index})" class="px-2.5 py-1 bg-sky-600/80 hover:bg-sky-500 text-white rounded-lg text-xs"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="deleteEmployee(${index})" class="px-2.5 py-1 bg-rose-600/80 hover:bg-rose-500 text-white rounded-lg text-xs"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            // Pending Leave Requests
+            const pendingTbody = document.getElementById('hr-pending-requests-tbody');
+            pendingTbody.innerHTML = '';
+            const pendingList = appState.data.leaveRequests.filter(r => r.status === 'PENDING');
+            document.getElementById('pending-count-badge').textContent = `${pendingList.length} طلب معلق`;
+            document.getElementById('stat-pending-requests').textContent = pendingList.length;
+
+            if(pendingList.length === 0) {
+                pendingTbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-slate-500">لا توجد طلبات إجازة معلقة حالياً</td></tr>`;
+            } else {
+                pendingList.forEach(req => {
+                    pendingTbody.innerHTML += `
+                        <tr class="hover:bg-slate-800/50 transition-colors">
+                            <td class="p-3 font-bold text-sky-400">${req.userName}</td>
+                            <td class="p-3 text-slate-300">${req.leaveTypeName}</td>
+                            <td class="p-3 text-slate-300 font-mono">${req.startDate} ➔ ${req.endDate}</td>
+                            <td class="p-3 font-bold text-amber-400">${req.days} يوم</td>
+                            <td class="p-3 text-slate-400">${req.replacement}</td>
+                            <td class="p-3 text-slate-400">${req.reason}</td>
+                            <td class="p-3 text-center flex justify-center gap-2">
+                                <button onclick="processLeaveAction(${req.id}, 'APPROVE')" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold">موافقة</button>
+                                <button onclick="processLeaveAction(${req.id}, 'REJECT')" class="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold">رفض</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+
+            renderHRMasterTable();
+        }
+
+        function renderHRMasterTable(filter = 'ALL') {
+            const tbody = document.getElementById('hr-attendance-tbody');
+            tbody.innerHTML = '';
+            let logs = appState.data.allEmployeesLogs;
+            if (filter !== 'ALL') logs = logs.filter(l => l.status === filter);
+
+            logs.forEach(log => {
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-800/50 transition-colors">
+                        <td class="p-3 font-bold text-slate-200">${log.name}</td>
+                        <td class="p-3 text-slate-400">${log.dept}</td>
+                        <td class="p-3 text-slate-300 font-mono">${log.date}</td>
+                        <td class="p-3 text-slate-300">${log.checkIn}</td>
+                        <td class="p-3 text-slate-300">${log.checkOut}</td>
+                        <td class="p-3 text-slate-400">${log.method}</td>
+                        <td class="p-3">${getStatusBadge(log.status)}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function filterHRTable() {
+            renderHRMasterTable(document.getElementById('filter-status').value);
+        }
+
+        // Employee CRUD Modal Controls
+        function openEmployeeModal(index = -1) {
+            document.getElementById('employee-modal').classList.remove('hidden');
+            document.getElementById('emp-edit-index').value = index;
+            if (index >= 0) {
+                const emp = appState.data.employeesList[index];
+                document.getElementById('modal-title').textContent = "تعديل بيانات الموظف";
+                document.getElementById('emp-name').value = emp.name;
+                document.getElementById('emp-email').value = emp.email;
+                document.getElementById('emp-dept').value = emp.department;
+                document.getElementById('emp-title').value = emp.title;
+                document.getElementById('emp-annual').value = emp.annual;
+                document.getElementById('emp-sick').value = emp.sick;
+            } else {
+                document.getElementById('modal-title').textContent = "إضافة موظف جديد";
+                document.getElementById('employee-form').reset();
+            }
+        }
+
+        function closeEmployeeModal() {
+            document.getElementById('employee-modal').classList.add('hidden');
+        }
+
+        function saveEmployee(e) {
+            e.preventDefault();
+            const index = parseInt(document.getElementById('emp-edit-index').value);
+            const empData = {
+                id: index >= 0 ? appState.data.employeesList[index].id : Date.now(),
+                name: document.getElementById('emp-name').value,
+                email: document.getElementById('emp-email').value,
+                department: document.getElementById('emp-dept').value,
+                title: document.getElementById('emp-title').value,
+                annual: parseInt(document.getElementById('emp-annual').value),
+                sick: parseInt(document.getElementById('emp-sick').value)
+            };
+
+            if (index >= 0) {
+                appState.data.employeesList[index] = empData;
+                showToast("تم التحديث", "تم تعديل بيانات الموظف بنجاح.");
+            } else {
+                appState.data.employeesList.push(empData);
+                showToast("تمت الإضافة", "تمت إضافة الموظف الجديد بنجاح.");
+            }
+
+            saveData();
+            closeEmployeeModal();
+            renderHRView();
+        }
+
+        function editEmployee(index) {
+            openEmployeeModal(index);
+        }
+
+        function deleteEmployee(index) {
+            if (confirm("هل أنت متأكد من حذف هذا الموظف؟")) {
+                appState.data.employeesList.splice(index, 1);
+                saveData();
+                renderHRView();
+                showToast("تم الحذف", "تم حذف الموظف من النظام بنجاح.", "error");
+            }
+        }
+
+        function processLeaveAction(requestId, action) {
+            const req = appState.data.leaveRequests.find(r => r.id === requestId);
+            if (!req) return;
+
+            req.status = action === 'APPROVE' ? 'APPROVED' : 'REJECTED';
+            if (action === 'APPROVE') {
+                if (req.userId === appState.data.currentUser.id) {
+                    appState.data.currentUser.balances.ANNUAL -= req.days;
+                }
+                appState.data.allEmployeesLogs.unshift({ id: Date.now(), name: req.userName, dept: "الموارد البشرية", date: req.startDate, checkIn: "-", checkOut: "-", method: "إجازة معتمدة", status: "LEAVE" });
+                showToast("تمت الموافقة", `تم اعتماد طلب الإجازة للموظف ${req.userName}.`);
+            } else {
+                showToast("تم الرفض", `تم رفض طلب الإجازة.`, "error");
+            }
+
+            saveData();
+            renderHRView();
+            renderEmployeeView();
+        }
+
+        function getStatusBadge(status) {
+            switch (status) {
+                case 'PRESENT': return `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">حاضر</span>`;
+                case 'LATE': return `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">متأخر</span>`;
+                case 'LEAVE': return `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/20 text-sky-400 border border-sky-500/30">إجازة</span>`;
+                case 'ABSENT': return `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">غائب</span>`;
+                default: return `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-500/20 text-slate-400">${status}</span>`;
+            }
+        }
+
+        function exportToPrint() { window.print(); }
+
+        function showToast(title, msg, type = 'success') {
+            const toast = document.getElementById('toast-notification');
+            document.getElementById('toast-title').textContent = title;
+            document.getElementById('toast-msg').textContent = msg;
+            document.getElementById('toast-icon').innerHTML = type === 'error' ? `<i class="fa-solid fa-circle-xmark text-rose-400"></i>` : `<i class="fa-solid fa-circle-check text-emerald-400"></i>`;
+
+            toast.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none');
+            }, 3500);
+        }
+    </script>
+</body>
+</html>
